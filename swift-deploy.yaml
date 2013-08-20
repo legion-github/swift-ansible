@@ -1,0 +1,30 @@
+---
+- hosts: ring
+  user: root
+
+  tasks:
+  - name: Create ring
+    swift_ring_create: path={{ ring_dir }} name={{ item }}.{{ ring_suffix }}
+    with_items:
+    - account
+    - container
+    - object
+
+  - name: Fill account ring
+    swift_ring_add: path={{ ring_dir }} name=account.{{ ring_suffix }} zone={{ hostvars[item]['zone'] }} ip={{ hostvars[item]['ip'] }} port={{ hostvars[item]['bind_port'] }} disk={{ hostvars[item]['disk'] }} weight={{ hostvars[item]['weight'] }}
+    with_items: groups.account
+
+  - name: Fill container ring
+    swift_ring_add: path={{ ring_dir }} name=container.{{ ring_suffix }} zone={{ hostvars[item]['zone'] }} ip={{ hostvars[item]['ip'] }} port={{ hostvars[item]['bind_port'] }} disk={{ hostvars[item]['disk'] }} weight={{ hostvars[item]['weight'] }}
+    with_items: groups.container
+
+  - name: Fill object ring
+    swift_ring_add: path={{ ring_dir }} name=object.{{ ring_suffix }} zone={{ hostvars[item]['zone'] }} ip={{ hostvars[item]['ip'] }} port={{ hostvars[item]['bind_port'] }} disk={{ hostvars[item]['disk'] }} weight={{ hostvars[item]['weight'] }}
+    with_items: groups.object
+
+  - name: Rebalance rings
+    swift_ring_rebalance: path={{ ring_dir }} name={{ item }}.{{ ring_suffix }}
+    with_items:
+    - account
+    - container
+    - object

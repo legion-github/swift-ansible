@@ -1,0 +1,66 @@
+#!/usr/bin/python
+
+import sys
+import os
+
+EXAMPLES = ''
+DOCUMENTATION = '''
+---
+module: swift_ring_rebalance
+version_added: "0.1"
+short_description: Rebalances a ring.
+description:
+    - Attempts to rebalance the ring by reassigning partitions that haven't been recently reassigned.
+options:
+  name:
+    description:
+      - The Ring name
+    required: true
+    default: null
+    aliases: []
+  path:
+    description:
+      - Swift base directory
+    required: false
+    default: "/etc/swift"
+    aliases: []
+
+examples:
+  - code: "swift_ring_rebalance: name=account.builder path=/etc/swift"
+
+notes: [ "Rebalancing rings can take some time." ]
+requirements: []
+see_also: [ "swift-ring-builder(1)" ]
+
+author: Alexey Gladkov
+'''
+
+def main():
+	module = AnsibleModule(
+		argument_spec = dict(
+			name = dict(required=True,  type='str'),
+			path = dict(required=False, type='str',  default="/etc/swift"),
+		)
+	)
+
+	ring_file = "{0}/{1}".format(module.params['path'], module.params['name'])
+
+	if not os.access(ring_file, os.R_OK):
+		module.fail_json(msg=ring_file + ": Ring not found.")
+	try:
+		(rc, out, err) = module.run_command([ "swift-ring-builder", ring_file, "rebalance" ])
+
+		if rc == 2:
+			module.fail_json(msg="Unable to rebalance ring: {0}: {1}".format(ring_file, err))
+		elif rc == 1:
+			module.exit_json(changed=False)
+		else:
+			module.exit_json(changed=True)
+
+	except Exception, e:
+		module.fail_json(msg=str(e))
+
+
+# this is magic, see lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+main()

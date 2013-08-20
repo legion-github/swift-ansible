@@ -1,0 +1,118 @@
+#!/usr/bin/python
+
+import sys
+import os
+
+EXAMPLES = ''
+DOCUMENTATION = '''
+---
+module: swift_ring_add
+version_added: "0.1"
+short_description: Adds a server with device to the ring.
+options:
+  name:
+    description:
+      - The Ring name
+    required: true
+    default: null
+    aliases: []
+  path:
+    description:
+      - Swift base directory
+    required: false
+    default: "/etc/swift"
+    aliases: []
+  zone:
+    description:
+      - Set the zone number for that storage device. A zone could represent
+        a drive, a server, a cabinet, a switch, or even a datacenter.
+    required: true
+    aliases: []
+  ip:
+    description:
+      - Server ip address
+    required: true
+    aliases: []
+  port:
+    description:
+      - Server port
+    required: true
+    aliases: []
+  disk:
+    description:
+      - Server device name
+    required: true
+    aliases: []
+  weight:
+    description:
+      - Relative weight (higher for bigger/faster disks)
+    required: true
+    aliases: []
+
+examples:
+  - code: 'swift_ring_add: name="account.builder" path="/etc/swift" zone=1 ip="127.0.0.1" port=6000 disk="sda1" weight=100'
+
+notes: []
+requirements: []
+see_also: [ "swift-ring-builder(1)" ]
+
+author: Alexey Gladkov
+'''
+
+def main():
+	module = AnsibleModule(
+		argument_spec = dict(
+			name   = dict(required=True,  type='str'),
+			zone   = dict(required=True,  type='int'),
+			ip     = dict(required=True,  type='str'),
+			port   = dict(required=True,  type='int'),
+			disk   = dict(required=True,  type='str'),
+			weight = dict(required=True,  type='int'),
+			region = dict(required=False, type='int', default=1),
+			path   = dict(required=False, type='str', default="/etc/swift"),
+		),
+		supports_check_mode=True
+	)
+
+	ring_file = "{0}/{1}".format(module.params['path'], module.params['name'])
+	host_spec = "r{0}z{1}-{2}:{3}/{4}".format(
+				module.params['region'],
+				module.params['zone'],
+				module.params['ip'],
+				module.params['port'],
+				module.params['disk']
+	)
+
+	if module.check_mode:
+		if not os.access(ring_file, os.R_OK):
+			module.exit_json(changed=True)
+
+		(rc, out, err) = module.run_command(
+			[ "swift-ring-builder", ring_file, "search", host_spec ])
+
+		module.exit_json(changed=(rc != 0))
+
+	if not os.access(ring_file, os.R_OK):
+		module.fail_json(msg=ring_file + ": Ring not found.")
+	try:
+		(rc, out, err) = module.run_command(
+			[ "swift-ring-builder", ring_file, "search", host_spec ])
+		if rc == 0:
+			module.exit_json(changed=False)
+
+		(rc, out, err) = module.run_command(
+			[ "swift-ring-builder", ring_file, "add", host_spec, str(module.params['weight']) ])
+
+		if rc != 0:
+			module.fail_json(msg="Unable to add host: {0}: err={1}: out={2}".format(
+				ring_file, err, out))
+		else:
+			module.exit_json(changed=True)
+
+	except Exception, e:
+		module.fail_json(msg=str(e))
+
+
+# this is magic, see lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+main()
