@@ -1,9 +1,4 @@
 ---
-- name: Get Swift layout facts
-  swift_facts: fn=/etc/swift/layout.conf
-  register: swift
-  tags: [ "rsync" ]
-
 - name: Ensure the rsyncd config directory exists
   shell: mkdir -p -- /etc/rsyncd.conf.d
   tags: [ "rsync" ]
