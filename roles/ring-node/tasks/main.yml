@@ -1,13 +1,13 @@
 ---
 - name: Sync builders to nodes
-  local_action: command rsync -a /etc/swift/{{ item }}{{ swift['layout']['ring_builder_ext'] }} {{ inventory_hostname }}:/etc/swift/
+  local_action: command rsync -a {{ swift['layout']['ring_dir'] }}/{{ item }}{{ swift['layout']['ring_builder_ext'] }} {{ inventory_hostname }}:/etc/swift/
   with_items:
   - account
   - container
   - object
 
 - name: Sync ring to nodes
-  local_action: command rsync -a /etc/swift/{{ item }}{{ swift['layout']['ring_file_ext'] }} {{ inventory_hostname }}:/etc/swift/
+  local_action: command rsync -a {{ swift['layout']['ring_dir'] }}/{{ item }}{{ swift['layout']['ring_file_ext'] }} {{ inventory_hostname }}:/etc/swift/
   with_items:
   - account
   - container
