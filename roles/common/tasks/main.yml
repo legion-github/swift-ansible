@@ -19,7 +19,7 @@
 - name: Get Swift layout facts
   swift_facts: fn=/etc/swift/layout.conf
   register: swift
-  tags: [ "prepare" ]
+  tags: [ "prepare", "facts" ]
 
 
 - name: Create the swift user
