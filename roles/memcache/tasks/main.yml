@@ -1,0 +1,8 @@
+---
+- name: Install memcache package
+  yum: name=memcached state=latest
+  tags: [ "memcache" ]
+
+- name: Start memcached
+  service: name=memcached state=started
+  tags: [ "memcache" ]

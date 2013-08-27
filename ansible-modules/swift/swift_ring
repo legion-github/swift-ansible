@@ -1,0 +1,137 @@
+#!/usr/bin/python
+
+import sys
+import os
+import ast
+
+EXAMPLES = ''
+DOCUMENTATION = '''
+---
+module: swift_ring
+version_added: "0.1"
+short_description: Gets swift configuration
+options:
+  fn:
+    description:
+      - The file that contains the configuration
+    required: true
+    default: null
+    aliases: []
+
+requirements: []
+author: Alexey Gladkov
+'''
+
+def parse(astr, fn='<unknown>'):
+	try:
+		tree = ast.parse(astr, filename=fn, mode='eval')
+	except SyntaxError as e:
+		raise e
+
+	boolean = {'true':'True', 'false':'False' }
+
+	for node in ast.walk(tree):
+		if not isinstance(node, (ast.Dict, ast.Expression, ast.List, ast.Load, ast.Name, ast.Num, ast.Str)):
+			e = SyntaxError("Bad nodes found: {0}".format(node))
+			e.filename, e.lineno = fn, node.lineno
+			raise e
+
+		if isinstance(node, ast.Name):
+			if node.__dict__.get('id') in boolean:
+				node.__dict__['id'] = boolean[node.__dict__['id']]
+
+	return ast.literal_eval(tree)
+
+
+def main():
+	module = AnsibleModule(
+		argument_spec = dict(
+			fn          = dict(required=True,  type='str'),
+			path        = dict(required=False, type='str',  default="/etc/swift"),
+			force       = dict(required=False, type='bool', default=False),
+			norebalance = dict(required=False, type='bool', default=False),
+		)
+	)
+
+	changed = False
+
+	if not os.access(module.params['fn'], os.R_OK):
+		module.fail_json(msg="{0}: File not found.".format(module.params['fn']))
+	try:
+		content = open(module.params['fn']).read()
+		content = re.sub(r'^[ \t\n\r\f\v]+{', r'{', content)
+		content = re.sub(r'}[ \t\n\r\f\v]+$', r'}', content)
+
+		data = parse(content, module.params['fn'])
+
+		for section in ['account','container','object']:
+
+			ring_file = "{0}/{1}{2}".format(module.params['path'],
+			                                section,
+			                                data['ring_builder_ext'])
+
+			if os.access(ring_file, os.R_OK):
+				if not module.params['force']:
+					continue
+				try:
+					os.remove(ring_file)
+				except OSError, e:
+					module.fail_json(msg="Unable to remove previous ring: {0}: {1}".format(ring_file, e))
+
+			(rc,out,err) = module.run_command(
+				[ "swift-ring-builder", ring_file, "create",
+				  str(data[section]['part_power']),
+				  str(data[section]['replicas']),
+				  str(data[section]['min_part_hours']) ])
+			if rc == 2:
+				module.fail_json(msg="Unable to create ring: {0}: {1}".format(ring_file, err))
+			elif rc == 1:
+				pass # changed=False
+			else:
+				changed = True
+
+			for zone, body in data[section]['zones'].iteritems():
+				for host, options in data[section]['zones'][zone].iteritems():
+					region = options.get('region', 1)
+				
+					host_spec = "r{0}z{1}-{2}:{3}/{4}".format(
+						str(region),
+						str(zone),
+						str(options['ip']),
+						str(data[section]['port']),
+						str(options['disk']))
+
+					(rc, out, err) = module.run_command(
+						[ "swift-ring-builder", ring_file, "search", host_spec ])
+					if rc == 0:
+						continue
+
+					(rc, out, err) = module.run_command(
+						[ "swift-ring-builder", ring_file, "add",
+						  host_spec, str(options['weight']) ])
+					if rc != 0:
+						module.fail_json(msg="Unable to add host: {0}: err={1}: out={2}".format(
+							ring_file, err, out))
+					changed = True
+
+			if module.params['norebalance']:
+				continue
+
+			(rc, out, err) = module.run_command(
+				[ "swift-ring-builder", ring_file, "rebalance" ])
+			if rc == 2:
+				module.fail_json(msg="Unable to rebalance ring: {0}: {1}".format(
+					ring_file, err))
+			elif rc == 1:
+				pass # changed=False
+			else:
+				changed = True
+	except Exception, e:
+		module.fail_json(msg="Exception: {0}".format(e))
+
+	module.exit_json(changed=changed)
+
+# this is magic, see lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+main()
+

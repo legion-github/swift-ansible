@@ -1,0 +1,5 @@
+---
+- name: Restart Swift services
+  command: swift-init all restart
+  ignore_errors: true
+  tags: [ "swift_startup", "swift_restart" ]

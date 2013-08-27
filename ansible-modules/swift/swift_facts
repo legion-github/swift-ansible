@@ -1,0 +1,117 @@
+#!/usr/bin/python
+
+import sys
+import os
+import ast
+
+EXAMPLES = ''
+DOCUMENTATION = '''
+---
+module: swift_facts
+version_added: "0.1"
+short_description: Gets swift configuration
+options:
+  fn:
+    description:
+      - The file that contains the configuration
+    required: true
+    default: null
+    aliases: []
+  key:
+    description:
+      - Specifies the path to the dictionary
+    required: false
+    default: ""
+    aliases: []
+  delim:
+    description:
+      - Field delimiter for key
+    required: false
+    default: "."
+    aliases: []
+
+examples:
+  - code: "swift_facts: fn=/tmp/layout.conf key=account.zones delim=."
+
+requirements: []
+author: Alexey Gladkov
+'''
+
+def parse(astr, fn='<unknown>'):
+	try:
+		tree = ast.parse(astr, filename=fn, mode='eval')
+	except SyntaxError as e:
+		raise e
+
+	boolean = {'true':'True', 'false':'False' }
+
+	for node in ast.walk(tree):
+		if not isinstance(node, (ast.Dict, ast.Expression, ast.List, ast.Load, ast.Name, ast.Num, ast.Str)):
+			e = SyntaxError("Bad nodes found: {0}".format(node))
+			e.filename, e.lineno = fn, node.lineno
+			raise e
+
+		if isinstance(node, ast.Name):
+			if node.__dict__.get('id') in boolean:
+				node.__dict__['id'] = boolean[node.__dict__['id']]
+
+	return ast.literal_eval(tree)
+
+
+def main():
+	module = AnsibleModule(
+		argument_spec = dict(
+			fn       = dict(required=True,  type='str'),
+			key      = dict(required=False, type='str',  default=''),
+			delim    = dict(required=False, type='str',  default='.'),
+			outlist  = dict(required=False, type='bool', default=False),
+			hostsmap = dict(required=False, type='bool', default=False),
+		)
+	)
+	if not os.access(module.params['fn'], os.R_OK):
+		module.fail_json(msg="{0}: File not found.".format(module.params['fn']))
+	try:
+		content = open(module.params['fn']).read()
+		content = re.sub(r'^[ \t\n\r\f\v]+{', r'{', content)
+		content = re.sub(r'}[ \t\n\r\f\v]+$', r'}', content)
+
+		data = parse(content, module.params['fn'])
+		key  = module.params['key']
+
+		if module.params['key']:
+			for key in module.params['key'].split(module.params['delim']):
+				if isinstance(data, dict):
+					if key in data:
+						data = data[key]
+						continue
+					module.fail_json(msg="Key not found: {0}".format(key))
+
+				if isinstance(data, list):
+					i = int(k)
+					if i < len(data):
+						data = data[i]
+						continue
+					module.fail_json(msg="Index not found: {0}".format(key))
+
+				module.fail_json(msg="Container unsupported:".format(key))
+
+		if module.params['hostsmap']:
+			host_map = {}
+
+
+		if module.params['outlist']:
+			if isinstance(data, dict):
+				data = [{'key': k, 'value': v} for k,v in data.iteritems()]
+			if not isinstance(data, list):
+				data = [{key: data}]
+
+		module.exit_json(changed=True, layout=data)
+
+	except Exception, e:
+		module.fail_json(msg="Exception: {0}".format(e))
+
+
+# this is magic, see lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+main()
+

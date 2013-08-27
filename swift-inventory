@@ -1,0 +1,91 @@
+#!/usr/bin/python
+
+import os, sys, ast, re, copy, pprint
+import ConfigParser
+
+def parse(astr, fn='<unknown>'):
+	try:
+		tree = ast.parse(astr, filename=fn, mode='eval')
+	except SyntaxError as e:
+		raise e
+
+	boolean = {'true':'True', 'false':'False' }
+
+	for node in ast.walk(tree):
+		if not isinstance(node, (ast.Dict, ast.Expression, ast.List, ast.Load, ast.Name, ast.Num, ast.Str)):
+			e = SyntaxError("Bad nodes found: {0}".format(node))
+			e.filename, e.lineno = fn, node.lineno
+			raise e
+
+		if isinstance(node, ast.Name):
+			if node.__dict__.get('id') in boolean:
+				node.__dict__['id'] = boolean[node.__dict__['id']]
+
+	return ast.literal_eval(tree)
+
+def config(fn):
+	content = open(fn).read()
+	content = re.sub(r'^[ \t\n\r\f\v]+{', r'{', content)
+	content = re.sub(r'}[ \t\n\r\f\v]+$', r'}', content)
+
+	return parse(content, fn)
+
+if len(sys.argv) != 3:
+	print "Usage: swift-inventory <SWIFT-LAYOUT-FILE> <OUTPUT-DIR>"
+	sys.exit(1)
+
+layout_file = os.path.realpath(sys.argv[1])
+output_dir  = os.path.realpath(sys.argv[2])
+
+layout = config(layout_file)
+
+zones = {}
+config = {
+	'all:vars':          { 'swift_layout': layout_file },
+	'local':             { '127.0.0.10': None },
+	'proxy':             {},
+	'storages:children': { 'account': None, 'container': None, 'object': None },
+	'account':           {},
+	'container':         {},
+	'object':            {},
+}
+section_order = [ 'all:vars', 'local', 'proxy',
+                  'account', 'account:vars',
+                  'container', 'container:vars',
+                  'object', 'object:vars',
+                  'storages:children' ]
+
+for section in [ 'account', 'container', 'object' ]:
+	for zone in layout[section]['zones']:
+		for host in layout[section]['zones'][zone]:
+			if host in zones and zone != zones[host]:
+				print "Host must be in one zone:", host
+				sys.exit(1)
+			zones[host] = zone
+
+			key = '{0} zone={1}'.format(host, zone)
+			config[section][key] = None
+
+if 'proxy' in layout and 'hosts' in layout['proxy']:
+	for host in layout['proxy']['hosts']:
+		config['proxy'][host] = None
+
+ini_file = '{0}/layout.ini'.format(output_dir)
+
+with open(ini_file, 'wb') as ini:
+	for section in section_order:
+		if section not in config or not config[section]:
+			continue
+
+		body = config[section]
+
+		print >>ini, "[{0}]".format(section)
+
+		for option in sorted(body.keys()):
+			value = body[option]
+
+			if value != None:
+				print >>ini, "{0} = {1}".format(option, value)
+			else:
+				print >>ini, "{0}".format(option)
+		print >>ini, ""

@@ -1,0 +1,30 @@
+---
+- name: Get Swift layout facts
+  swift_facts: fn=/etc/swift/layout.conf
+  register: swift
+  tags: [ "rsync" ]
+
+- name: Ensure the rsyncd config directory exists
+  shell: mkdir -p -- /etc/rsyncd.conf.d
+  tags: [ "rsync" ]
+
+- name: Install common config for rsyncd
+  template: src=rsyncd-base.conf
+            dest=/etc/rsyncd.conf.d/000-rsyncd-base.conf
+  tags: [ "rsync" ]
+
+- name: Setup rsyncd for the swift servers
+  template: src=rsyncd-service.conf
+            dest=/etc/rsyncd.conf.d/{{ item }}-{{ swift['layout'][item]['zones'][zone|string][inventory_hostname]['ip'] }}.{{ swift['layout'][item]['port'] }}.conf
+  with_items: group_names
+  when: item in ['account','container','object']
+  tags: [ "rsync" ]
+
+- name: Join rsyncd.conf together
+  assemble: src=/etc/rsyncd.conf.d
+            dest=/etc/rsyncd.conf
+  tags: [ "rsync" ]
+
+- name: Restart rsyncd
+  service: name=rsyncd state=restarted
+  tags: [ "rsync" ]

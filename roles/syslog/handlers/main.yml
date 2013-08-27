@@ -1,0 +1,8 @@
+---
+- name: Restart rsyslog server
+  service: name=rsyslog state=restarted
+  tags: [ "syslog", "rsyslog" ]
+
+- name: Restart syslog-ng server
+  service: name=syslog-ng state=restarted
+  tags: [ "syslog", "syslog-ng" ]

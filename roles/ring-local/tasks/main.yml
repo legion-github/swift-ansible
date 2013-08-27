@@ -1,0 +1,22 @@
+---
+- name: Get Swift layout facts
+  swift_facts: fn={{ swift_layout }}
+  register: swift
+  tags: [ "ring", "ring_facts" ]
+
+
+- name: Create Swift rings
+  swift_ring: fn={{ swift_layout }}
+              path={{ swift['layout']['ring_dir'] }}
+              norebalance=true
+  tags: [ "ring", "ring_create" ]
+
+
+- name: Rebalance rings
+  swift_ring_rebalance: path={{ swift['layout']['ring_dir'] }}
+                        name={{ item }}{{ swift['layout']['ring_builder_ext'] }}
+  with_items:
+  - account
+  - container
+  - object
+  tags: [ "ring", "rebalance_ring" ]

@@ -1,0 +1,87 @@
+---
+- name: Create the swift directories
+  file: path=/etc/swift
+        owner=root
+        group=root
+        state=directory
+  tags: [ "prepare" ]
+
+
+- name: Copy layout.conf
+  copy: src={{ swift_layout }}
+            dest=/etc/swift/layout.conf
+            owner=root
+            group=root
+            mode=0644
+  tags: [ "prepare", "configs", "layout_conf" ]
+
+
+- name: Get Swift layout facts
+  swift_facts: fn=/etc/swift/layout.conf
+  register: swift
+  tags: [ "prepare" ]
+
+
+- name: Create the swift user
+  user: name={{ swift['layout']['user'] }}
+        group={{ swift['layout']['group'] }}
+        home={{ swift['layout']['user_home'] }}
+        comment="OpenStack Swift Daemons"
+        shell=/sbin/nologin
+        createhome=yes
+        state=present
+  tags: [ "prepare", "user" ]
+
+
+- name: Create the swift directories
+  file: path={{ item }}
+        owner={{ swift['layout']['user'] }}
+        group={{ swift['layout']['group'] }}
+        state=directory
+        recurse=yes
+  with_items:
+  - /var/cache/swift
+  - /var/run/swift
+  tags: [ "prepare", "swift_dirs" ]
+
+
+- name: Create data directory
+  shell: mkdir -p {{ swift['layout']['mount_point'] }}/node && chown {{ swift['layout']['user'] }}:{{ swift['layout']['group'] }} {{ swift['layout']['mount_point'] }}/node
+  tags: [ "prepare", "swift_dirs" ]
+
+
+- name: Install swift packages
+  yum: name={{ item }}
+       state=latest
+  with_items:
+    - openstack-swift
+    - openstack-swift-account
+    - openstack-swift-container
+    - openstack-swift-object
+    - openstack-swift-proxy
+    - openstack-swift-plugin-swift3
+  tags: [ "prepare", "packages" ]
+
+
+- name: Configure the proxy, account, object, and container services
+  template: src={{ item }}-server.conf
+            dest=/etc/swift/{{ item }}-server.conf
+            owner={{ swift['layout']['user'] }}
+            group={{ swift['layout']['group'] }}
+            mode=0600
+  with_items:
+  - proxy
+  - container
+  - object
+  - account
+  when: item in group_names
+  tags: [ "prepare", "configs" ]
+
+
+- name: Copy swift.conf
+  template: src=swift.conf
+            dest=/etc/swift/swift.conf
+            owner={{ swift['layout']['user'] }}
+            group={{ swift['layout']['group'] }}
+            mode=0600
+  tags: [ "prepare", "configs", "swift_conf" ]

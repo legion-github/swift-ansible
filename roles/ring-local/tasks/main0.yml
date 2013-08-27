@@ -1,0 +1,85 @@
+---
+- name: Get Swift layout facts
+  swift_facts: fn={{ swift_layout }}
+  register: swift
+  tags: [ "ring", "ring_facts" ]
+
+
+- name: Get Swift facts for account ring
+  swift_facts: fn={{ swift_layout }}
+               key=account.zones.{{ zone }}
+               outlist=true
+  register: swift_account
+  tags: [ "ring", "ring_facts" ]
+
+
+- name: Get Swift facts for container ring
+  swift_facts: fn={{ swift_layout }}
+               key=container.zones.{{ zone }}
+               outlist=true
+  register: swift_container
+  tags: [ "ring", "ring_facts" ]
+
+
+- name: Get Swift facts for object ring
+  swift_facts: fn={{ swift_layout }}
+               key=object.zones.{{ zone }}
+               outlist=true
+  register: swift_object
+  tags: [ "ring", "ring_facts" ]
+
+
+- name: Create account, container and object ring
+  swift_ring_create: path=/etc/swift
+                     name={{ item }}{{ swift['layout']['ring_builder_ext'] }}
+  with_items:
+  - account
+  - container
+  - object
+  tags: [ "ring", "create_ring" ]
+
+
+- name: Fill account ring
+  swift_ring_add: path=/etc/swift
+                  name=account{{ swift['layout']['ring_builder_ext'] }}
+                  zone={{ zone }}
+                  ip={{ item['value']['ip'] }}
+                  port={{ swift['layout']['account']['port'] }}
+                  disk={{ item['value']['disk'] }}
+                  weight={{ item['value']['weight'] }}
+  with_items: swift_account['layout']
+  tags: [ "ring", "fill_ring" ]
+
+
+- name: Fill container ring
+  swift_ring_add: path=/etc/swift
+                  name=container{{ swift['layout']['ring_builder_ext'] }}
+                  zone={{ zone }}
+                  ip={{ item['value']['ip'] }}
+                  port={{ swift['layout']['container']['port'] }}
+                  disk={{ item['value']['disk'] }}
+                  weight={{ item['value']['weight'] }}
+  with_items: swift_account['layout']
+  tags: [ "ring", "fill_ring" ]
+
+
+- name: Fill object ring
+  swift_ring_add: path=/etc/swift
+                  name=object{{ swift['layout']['ring_builder_ext'] }}
+                  zone={{ zone }}
+                  ip={{ item['value']['ip'] }}
+                  port={{ swift['layout']['object']['port'] }}
+                  disk={{ item['value']['disk'] }}
+                  weight={{ item['value']['weight'] }}
+  with_items: swift_account['layout']
+  tags: [ "ring", "fill_ring" ]
+
+
+- name: Rebalance rings
+  swift_ring_rebalance: path=/etc/swift
+                        name={{ item }}{{ swift['layout']['ring_builder_ext'] }}
+  with_items:
+  - account
+  - container
+  - object
+  tags: [ "ring", "rebalance_ring" ]

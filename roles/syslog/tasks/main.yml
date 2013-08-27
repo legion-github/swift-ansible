@@ -1,0 +1,40 @@
+---
+- name: Check for rsyslog 
+  command: test -d /etc/rsyslog.d
+  register: rsyslog
+  ignore_errors: True
+  tags: [ "prepare", "syslog", "rsyslog" ]
+
+
+- name: Configure rsyslog
+  template: src=swift-rsyslog.conf
+            dest=/etc/rsyslog.d/10-swift.conf
+  when: rsyslog['rc'] == 0
+  notify:
+  - Restart rsyslog server
+  tags: [ "prepare", "syslog", "rsyslog" ]
+
+
+- name: Check for syslog-ng
+  command: test -d /etc/syslog-ng
+  register: syslog_ng
+  ignore_errors: True
+  tags: [ "prepare", "syslog", "syslog-ng" ]
+
+
+- name: Configure syslog-ng
+  template: src=swift-rsyslog.conf
+            dest=/etc/syslog-ng/swift.conf
+  when: syslog_ng['rc'] == 0
+  tags: [ "prepare", "syslog", "syslog-ng" ]
+
+
+- name: Modify syslog-ng.conf
+  lineinfile: dest=/etc/syslog-ng/syslog-ng.conf
+              regexp='^\s*include\s"/etc/syslog-ng/swift.conf";'
+              insertafter="^@version:"
+              line='\ninclude "/etc/syslog-ng/swift.conf";'
+  when: syslog_ng['rc'] == 0
+  notify:
+  - Restart syslog-ng server
+  tags: [ "prepare", "syslog", "syslog-ng" ]

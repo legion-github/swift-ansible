@@ -1,0 +1,20 @@
+---
+- hosts: local
+  roles:
+   - role: ring-local
+
+- hosts: all:!local
+  roles:
+   - role: clean
+   - role: common
+   - role: ring-node
+   - role: syslog
+   - role: swift-service
+
+- hosts: proxy
+  roles:
+   - role: memcache
+
+- hosts: storages
+  roles:
+   - role: rsync
