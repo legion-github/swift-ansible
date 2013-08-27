@@ -1,13 +1,23 @@
 ---
+- name: Check previous installation
+  command: test -f /etc/swift/layout.conf
+  register: have_swift
+  ignore_errors: true
+  tags: [ "clean" ]
+
+
 - name: Get Swift layout facts
   swift_facts: fn=/etc/swift/layout.conf
   register: swift
+  when: have_swift['rc'] == 0
   tags: [ "clean" ]
+
 
 - name: Stop swift services
   command: swift-init all stop
   ignore_errors: true
   tags: [ "clean" ]
+
 
 - name: Remove swift packages
   yum: name={{ item }} state=removed
@@ -21,13 +31,17 @@
     - memcached
   tags: [ "clean" ]
 
+
 - name: Remove Swift data directory
   command: rm -rf -- {{ swift['layout']['mount_point'] }}/node
+  when: have_swift['rc'] == 0
   tags: [ "clean" ]
+
 
 - name: Remove swift configuration
   command: rm -rf -- /var/log/swift /var/cache/swift /var/run/swift /etc/swift /etc/rsyslog.d/10-swift.conf
   tags: [ "clean" ]
+
 
 - name: Remove syslog configuration
   command: rm -f -- /etc/rsyslog.d/10-swift.conf /etc/syslog-ng/swift.conf
