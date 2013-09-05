@@ -5,6 +5,14 @@
   tags: [ "ring", "ring_facts" ]
 
 
+- name: Get Swift packages
+  yum: name={{ item }}
+       state=latest
+  with_items:
+  - openstack-swift
+  tags: [ "ring", "ring_packages" ]
+
+
 - name: Create Swift rings
   swift_ring: fn={{ swift_layout }}
               path={{ swift['layout']['ring_dir'] }}
