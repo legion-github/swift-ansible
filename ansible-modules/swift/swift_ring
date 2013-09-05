@@ -92,10 +92,7 @@ def main():
 
 			for zone, body in data[section]['zones'].iteritems():
 				for host, options in data[section]['zones'][zone].iteritems():
-					region = options.get('region', 1)
-				
-					host_spec = "r{0}z{1}-{2}:{3}/{4}".format(
-						str(region),
+					host_spec = "z{0}-{1}:{2}/{3}".format(
 						str(zone),
 						str(options['ip']),
 						str(data[section]['port']),

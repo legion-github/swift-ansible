@@ -68,19 +68,17 @@ def main():
 			port   = dict(required=True,  type='int'),
 			disk   = dict(required=True,  type='str'),
 			weight = dict(required=True,  type='int'),
-			region = dict(required=False, type='int', default=1),
 			path   = dict(required=False, type='str', default="/etc/swift"),
 		),
 		supports_check_mode=True
 	)
 
 	ring_file = "{0}/{1}".format(module.params['path'], module.params['name'])
-	host_spec = "r{0}z{1}-{2}:{3}/{4}".format(
-				module.params['region'],
-				module.params['zone'],
-				module.params['ip'],
-				module.params['port'],
-				module.params['disk']
+	host_spec = "z{0}-{1}:{2}/{3}".format(
+		module.params['zone'],
+		module.params['ip'],
+		module.params['port'],
+		module.params['disk']
 	)
 
 	if module.check_mode:
